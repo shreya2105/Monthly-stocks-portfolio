@@ -1,0 +1,81 @@
+---
+title: "portfolio"
+author: "SA"
+date: "2/17/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(reshape2)
+```
+
+```{r}
+er <- read_xlsx("/Users/shreyaagarwal/Documents/Code/portfolio_taken/portfolios/Excess Returns.xlsx")
+mc <- read_xlsx("/Users/shreyaagarwal/Documents/Code/portfolio_taken/portfolios/Market cap.xlsx")
+
+colnames(er)[1] <- "month"
+
+colnames(mc)
+```
+
+```{r}
+
+er.1 <- melt(er, id.vars = "month") #converting dataframe into the long form
+
+mc.1 <- melt(mc, id.vars = "month") #converting dataframe into the long form
+mc.1$value <- as.integer(mc.1$value) 
+
+mc.1 <- mc.1 %>% filter(!is.na(value)) #removing NA rows
+
+#creating a rank column to rank market caps
+mc_rank <- mc.1 %>% arrange(month, value) %>% 
+  group_by(month) %>% 
+  mutate(rank = dense_rank(desc(order((value))))) %>% 
+  ungroup %>% 
+  as.data.frame()
+
+df_mc = data.frame() #creating an empty dataframe
+
+#running for loop to find top 10 ranks in the market cap dataset
+for (i in mc_rank$month){
+  df = mc_rank %>% filter (month == i) %>% filter(rank <=10)
+  df_mc = rbind(df_mc, df)
+}
+  
+
+df_mc_1 <- unique(df_mc) #removing duplicated values
+df_mc_1 <- df_mc_1[,-5] #removing extra columns
+
+#joining large cap dataset with excess returns dataset to get excess returns values for the large cap stocks
+df_mc_1 <- left_join(df_mc_1, er.1, by = c("month", "variable")) 
+colnames(df_mc_1) <- c("month", "stock", "marketcap", "rank", "excess_returns") #changing colnumn names
+
+write_csv(df_mc_1, "/Users/shreyaagarwal/Documents/Code/portfolio_taken/portfolios/large_cap.csv")
+
+```
+
+Small cap
+```{r}
+
+#running for loop to find bottom 10 ranks in the market cap dataset
+for (i in mc_rank$month){
+  df = mc_rank %>% filter (month == i) %>% top_n(-10, desc(rank))
+  df_mc = rbind(df_mc, df)
+}
+  
+df_mc_2 <- unique(df_mc) #removing duplicated rows
+
+df_mc_2 <- left_join(df_mc_2, er.1, by = c("month", "variable")) #joining smallcap dataset with excess returns dataset to get excess returns values for the small cap stocks.
+
+colnames(df_mc_2) <- c("month", "stock", "marketcap", "rank", "excess_returns") #changing column names
+
+write_csv(df_mc_2, "/Users/shreyaagarwal/Documents/Code/portfolio_taken/portfolios/small_cap.csv")
+
+```
+
